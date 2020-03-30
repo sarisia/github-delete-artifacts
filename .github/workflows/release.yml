@@ -1,0 +1,46 @@
+name: release
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [darwin, linux, windows]
+      fail-fast: false
+    env:
+      ASSET_NAME: github-delete-artifacts-${{ matrix.goos }}-amd64
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 1
+    - uses: actions/setup-go@v1
+      with:
+        go-version: 1.13.x
+    - run: mkdir bin
+    - name: build
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: amd64
+      run: go build -o bin/ .
+    - name: zip it
+      run: zip -r ${{ env.ASSET_NAME }}.zip bin
+    - name: release
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ${{ env.ASSET_NAME }}.zip
+        asset_name: ${{ env.ASSET_NAME }}.zip
+        asset_content_type: application/zip
+    - name: discord notify
+      if: always()
+      uses: sarisia/actions-status-discord@v1
+      with:
+        webhook: ${{ secrets.DISCORD_WEBHOOK }}
+        status: ${{ job.status }}
+        job: github-delete-artifacts - ${{ matrix.goos }}
